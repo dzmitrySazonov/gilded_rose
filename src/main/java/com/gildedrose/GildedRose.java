@@ -1,9 +1,15 @@
 package com.gildedrose;
 
+import java.util.Set;
+
 class GildedRose {
-    public static final String AGED_BRIE = "Aged Brie";
-    public static final String SULFURAS_HAND_OF_RAGNAROS = "Sulfuras, Hand of Ragnaros";
-    public static final String BACKSTAGE_PASSES_REGEX = "Backstage passes";
+    private static final String AGED_BRIE = "Aged Brie";
+    private static final String SULFURAS_HAND_OF_RAGNAROS = "Sulfuras, Hand of Ragnaros";
+    private static final String BACKSTAGE_PASSES_REGEX = "Backstage passes";
+    private static final String CONJURED_ITEMS_REGEX = "Conjured";
+    private static final int MAX_QUALITY = 50;
+    private static final int MIN_QUALITY = 0;
+    private static final Set<String> LEGENDARY_GOODS_NOT_FOR_SALE = Set.of(SULFURAS_HAND_OF_RAGNAROS.toLowerCase());
     Item[] items;
 
     public GildedRose(Item[] items) {
@@ -11,55 +17,53 @@ class GildedRose {
     }
 
     public void updateQuality() {
-        for (int i = 0; i < items.length; i++) {
-            var itemName = items[i].name;
+        for (int i = MIN_QUALITY; i < items.length; i++) {
+            var item = items[i];
+            var itemName = item.name;
+            if (LEGENDARY_GOODS_NOT_FOR_SALE.contains(itemName.toLowerCase())) continue;
 
             if (!itemName.equals(AGED_BRIE) && !itemName.startsWith(BACKSTAGE_PASSES_REGEX)) {
-                if (items[i].quality > 0) {
-                    if (!itemName.equals(SULFURAS_HAND_OF_RAGNAROS)) {
-                        items[i].quality = items[i].quality - 1;
-                    }
-                }
+                validateAndDecrementQuality(item);
             } else {
-                if (items[i].quality < 50) {
-                    items[i].quality = items[i].quality + 1;
+                if (item.quality < MAX_QUALITY) {
+                    item.quality = item.quality + 1;
 
                     if (itemName.startsWith(BACKSTAGE_PASSES_REGEX)) {
-                        if (items[i].sellIn < 11) {
-                            validateAndIncrementQuality(items[i]);
+                        if (item.sellIn < 11) {
+                            validateAndIncrementQuality(item);
                         }
 
-                        if (items[i].sellIn < 6) {
-                            validateAndIncrementQuality(items[i]);
+                        if (item.sellIn < 6) {
+                            validateAndIncrementQuality(item);
                         }
                     }
                 }
             }
 
-            if (!itemName.equals(SULFURAS_HAND_OF_RAGNAROS)) {
-                items[i].sellIn = items[i].sellIn - 1;
-            }
+            item.sellIn = item.sellIn - 1;
 
-            if (items[i].sellIn < 0) {
-                if (!itemName.equals("Aged Brie")) {
+            if (item.sellIn < MIN_QUALITY) {
+                if (!itemName.equals(AGED_BRIE)) {
                     if (!itemName.startsWith(BACKSTAGE_PASSES_REGEX)) {
-                        if (items[i].quality > 0) {
-                            if (!itemName.equals(SULFURAS_HAND_OF_RAGNAROS)) {
-                                items[i].quality = items[i].quality - 1;
-                            }
-                        }
+                        validateAndDecrementQuality(item);
                     } else {
-                        items[i].quality = items[i].quality - items[i].quality;
+                        item.quality = item.quality - item.quality;
                     }
                 } else {
-                    validateAndIncrementQuality(items[i]);
+                    validateAndIncrementQuality(item);
                 }
             }
         }
     }
 
+    private void validateAndDecrementQuality(Item item) {
+        if (item.quality > MIN_QUALITY) {
+            item.quality = item.quality - 1;
+        }
+    }
+
     private void validateAndIncrementQuality(Item item) {
-        if (item.quality < 50) {
+        if (item.quality < MAX_QUALITY) {
             item.quality = item.quality + 1;
         }
     }
