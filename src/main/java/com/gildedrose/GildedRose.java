@@ -16,41 +16,33 @@ class GildedRose {
 
     private ItemProcessor defaultProcessor = new ItemProcessor(it -> it.sellIn < MAX_QUALITY + 1, it -> {
         validateAndDecrementQuality(it);
-        it.sellIn = it.sellIn - 1;
+        decrementSellIn(it);
         if (it.sellIn < 0) validateAndDecrementQuality(it);
     });
 
     private ItemProcessor legendaryGoodsProcessor = new ItemProcessor(it -> LEGENDARY_GOODS_NOT_FOR_SALE.contains(it.name.toLowerCase()),
         it -> {});
 
-    private ItemProcessor agedBrieProcessor = new ItemProcessor(it -> it.name != null
-        && AGED_BRIE.equalsIgnoreCase(it.name), it -> {
+    private ItemProcessor agedBrieProcessor = new ItemProcessor(it -> AGED_BRIE.equalsIgnoreCase(it.name), it -> {
         validateAndIncrementQuality(it);
-        it.sellIn = it.sellIn - 1;
+        decrementSellIn(it);
         if (it.sellIn < 0) validateAndIncrementQuality(it);
     });
 
-    private ItemProcessor backstagePassesProcessor = new ItemProcessor(it -> it.name != null
-        && it.name.startsWith(BACKSTAGE_PASSES_REGEX), it -> {
-        if (it.quality < MAX_QUALITY) {
-            it.quality = it.quality + 1;
-            if (it.sellIn < 11) validateAndIncrementQuality(it);
-            if (it.sellIn < 6) validateAndIncrementQuality(it);
-        }
-        it.sellIn = it.sellIn - 1;
-        if (it.sellIn < 0) {
-            it.quality = it.quality - it.quality;
-        }
+    private ItemProcessor backstagePassesProcessor = new ItemProcessor(it -> it.name.startsWith(BACKSTAGE_PASSES_REGEX), it -> {
+        validateAndIncrementQuality(it);
+        if (it.sellIn < 11) validateAndIncrementQuality(it);
+        if (it.sellIn < 6) validateAndIncrementQuality(it);
+        decrementSellIn(it);
+        if (it.sellIn < 0) it.quality = MIN_QUALITY;
     });
 
-    private ItemProcessor conjuredItemsProcessor = new ItemProcessor(it -> it.name != null
-        && it.name.startsWith(CONJURED_ITEMS_REGEX), it -> {
-        validateAndDecrementQuality(it);
-        it.sellIn = it.sellIn - 1;
-        validateAndDecrementQuality(it);
+    private ItemProcessor conjuredItemsProcessor = new ItemProcessor(it -> it.name.startsWith(CONJURED_ITEMS_REGEX), it -> {
+        validateAndDecrementQuality(it, 2);
+        decrementSellIn(it);
+        if (it.sellIn < 0) validateAndDecrementQuality(it, 2);
     });
-    private List<ItemProcessor> customizedItemProcessors = List.of(legendaryGoodsProcessor, agedBrieProcessor, backstagePassesProcessor);
-
+    private List<ItemProcessor> customizedItemProcessors = List.of(legendaryGoodsProcessor, agedBrieProcessor, backstagePassesProcessor, conjuredItemsProcessor);
 
     Item[] items;
 
@@ -63,7 +55,8 @@ class GildedRose {
             var item = items[i];
             customizedItemProcessors.stream()
                 .filter(p -> p.checkItem(item))
-                .findFirst().orElse(defaultProcessor)
+                .findFirst()
+                .orElse(defaultProcessor)
                 .processItem(item);
         }
     }
@@ -74,23 +67,33 @@ class GildedRose {
         }
     }
 
+    private void validateAndDecrementQuality(Item item, int multiplier) {
+        for (int i = 0; i < multiplier; i++) {
+            validateAndDecrementQuality(item);
+        }
+    }
+
     private void validateAndIncrementQuality(Item item) {
         if (item.quality < MAX_QUALITY) {
             item.quality = item.quality + 1;
         }
     }
 
-    private class ItemProcessor {
-        Predicate<Item> testItem;
-        Consumer<Item> itemConsumer;
+    private void decrementSellIn(Item item) {
+            item.sellIn = item.sellIn - 1;
+    }
 
-        public ItemProcessor(Predicate<Item> testItem, Consumer<Item> itemConsumer) {
-            this.testItem = testItem;
+    private class ItemProcessor {
+        private Predicate<Item> itemPredicate;
+        private Consumer<Item> itemConsumer;
+
+        public ItemProcessor(Predicate<Item> itemPredicate, Consumer<Item> itemConsumer) {
+            this.itemPredicate = itemPredicate;
             this.itemConsumer = itemConsumer;
         }
 
         public boolean checkItem(Item item) {
-            return item.name != null && testItem.test(item);
+            return item != null && item.name != null && itemPredicate.test(item);
         }
 
         public void processItem(Item item) {
