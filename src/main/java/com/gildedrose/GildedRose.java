@@ -1,62 +1,32 @@
 package com.gildedrose;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 class GildedRose {
-    private static final String AGED_BRIE = "Aged Brie";
-    private static final String SULFURAS_HAND_OF_RAGNAROS = "Sulfuras, Hand of Ragnaros";
-    private static final String BACKSTAGE_PASSES_REGEX = "Backstage passes";
-    private static final String CONJURED_ITEMS_REGEX = "Conjured";
     private static final int MAX_QUALITY = 50;
     private static final int MIN_QUALITY = 0;
-
-    private ItemProcessor defaultProcessor = new ItemProcessor(it -> it.sellIn < MAX_QUALITY + 1, it -> {
-        adjustQuality(it, -1);
-        it.sellIn--;
-        if (it.sellIn < 0) adjustQuality(it, -1);
-    });
-
-    private ItemProcessor legendaryGoodsProcessor = new ItemProcessor(it -> SULFURAS_HAND_OF_RAGNAROS.equalsIgnoreCase(it.name),
-        it -> {
-        });
-
-    private ItemProcessor agedBrieProcessor = new ItemProcessor(it -> AGED_BRIE.equalsIgnoreCase(it.name), it -> {
-        adjustQuality(it, 1);
-        it.sellIn--;
-        if (it.sellIn < 0) adjustQuality(it, 1);
-    });
-
-    private ItemProcessor backstagePassesProcessor = new ItemProcessor(it -> it.name.startsWith(BACKSTAGE_PASSES_REGEX), it -> {
-        adjustQuality(it, 1);
-        if (it.sellIn < 11) adjustQuality(it, 1);
-        if (it.sellIn < 6) adjustQuality(it, 1);
-        it.sellIn--;
-        if (it.sellIn < 0) it.quality = MIN_QUALITY;
-    });
-
-    private ItemProcessor conjuredItemsProcessor = new ItemProcessor(it -> it.name.startsWith(CONJURED_ITEMS_REGEX), it -> {
-        adjustQuality(it, -2);
-        it.sellIn--;
-        if (it.sellIn < 0) adjustQuality(it, -2);
-    });
-    private List<ItemProcessor> customizedItemProcessors = List.of(legendaryGoodsProcessor, agedBrieProcessor, backstagePassesProcessor, conjuredItemsProcessor);
+    private final List<ItemUpdater> customizedItemUpdaters = new ArrayList<>();
+    private final ItemUpdater defaultUpdater = new DefaultUpdater();
 
     Item[] items;
 
     public GildedRose(Item[] items) {
         this.items = items;
+        customizedItemUpdaters.add(new AgedBrieUpdater());
+        customizedItemUpdaters.add(new LegendaryUpdater());
+        customizedItemUpdaters.add(new BackstagePassesUpdater());
+        customizedItemUpdaters.add(new ConjuredUpdater());
     }
 
     public void updateQuality() {
-        for (int i = 0; i < items.length; i++) {
-            var item = items[i];
-            customizedItemProcessors.stream()
+        for (Item item : items) {
+            if (item == null || item.name == null) continue;
+            customizedItemUpdaters.stream()
                 .filter(p -> p.checkItem(item))
                 .findFirst()
-                .orElse(defaultProcessor)
-                .processItem(item);
+                .orElse(defaultUpdater)
+                .updateItem(item);
         }
     }
 
@@ -64,21 +34,87 @@ class GildedRose {
         item.quality = Math.max(MIN_QUALITY, Math.min(MAX_QUALITY, item.quality + delta));
     }
 
-    private class ItemProcessor {
-        private Predicate<Item> itemPredicate;
-        private Consumer<Item> itemConsumer;
+    interface ItemUpdater {
+        boolean checkItem(Item item);
 
-        public ItemProcessor(Predicate<Item> itemPredicate, Consumer<Item> itemConsumer) {
-            this.itemPredicate = itemPredicate;
-            this.itemConsumer = itemConsumer;
-        }
+        void updateItem(Item item);
+    }
 
+    static class DefaultUpdater implements ItemUpdater {
+        @Override
         public boolean checkItem(Item item) {
-            return item != null && item.name != null && itemPredicate.test(item);
+            return true;
         }
 
-        public void processItem(Item item) {
-            itemConsumer.accept(item);
+        @Override
+        public void updateItem(Item item) {
+            adjustQuality(item, -1);
+            item.sellIn--;
+            if (item.sellIn < 0) adjustQuality(item, -1);
         }
     }
+
+    static class LegendaryUpdater implements ItemUpdater {
+        private static final String SULFURAS_HAND_OF_RAGNAROS = "Sulfuras, Hand of Ragnaros";
+
+        @Override
+        public boolean checkItem(Item item) {
+            return SULFURAS_HAND_OF_RAGNAROS.equalsIgnoreCase(item.name);
+        }
+
+        public void updateItem(Item item) {
+            // Legendary items do not change
+        }
+    }
+
+    static class AgedBrieUpdater implements ItemUpdater {
+        private static final String AGED_BRIE = "Aged Brie";
+
+        @Override
+        public boolean checkItem(Item item) {
+            return AGED_BRIE.equalsIgnoreCase(item.name);
+        }
+
+        @Override
+        public void updateItem(Item item) {
+            adjustQuality(item, 1);
+            item.sellIn--;
+            if (item.sellIn < 0) adjustQuality(item, 1);
+        }
+    }
+
+    static class BackstagePassesUpdater implements ItemUpdater {
+        private static final String BACKSTAGE_PASSES_REGEX = "Backstage passes";
+
+        @Override
+        public boolean checkItem(Item item) {
+            return item.name.startsWith(BACKSTAGE_PASSES_REGEX);
+        }
+
+        @Override
+        public void updateItem(Item item) {
+            adjustQuality(item, 1);
+            if (item.sellIn < 11) adjustQuality(item, 1);
+            if (item.sellIn < 6) adjustQuality(item, 1);
+            item.sellIn--;
+            if (item.sellIn < 0) item.quality = MIN_QUALITY;
+        }
+    }
+
+    static class ConjuredUpdater implements ItemUpdater {
+        private static final String CONJURED_ITEMS_REGEX = "Conjured";
+
+        @Override
+        public boolean checkItem(Item item) {
+            return item.name.startsWith(CONJURED_ITEMS_REGEX);
+        }
+
+        @Override
+        public void updateItem(Item item) {
+            adjustQuality(item, -2);
+            item.sellIn--;
+            if (item.sellIn < 0) adjustQuality(item, -2);
+        }
+    }
+
 }
